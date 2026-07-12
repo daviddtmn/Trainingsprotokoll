@@ -50,7 +50,12 @@
     flex-direction:column;
     gap:20px;
     transition:width 0.22s ease;
-    overflow:hidden;
+    overflow-x:hidden;
+    overflow-y:auto;
+    position:sticky;
+    top:0;
+    height:100vh;
+    align-self:flex-start;
   }
   .sidebar.collapsed{
     width:var(--sidebar-w-collapsed);
@@ -1215,6 +1220,24 @@ function wait(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Führt eine window.storage-Operation mit automatischen Wiederholversuchen aus.
+// "Internal server error" ist meist ein kurzzeitiger, vorübergehender Fehler.
+async function storageWithRetry(fn, maxAttempts = 4){
+  let lastError = null;
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    try{
+      return await fn();
+    }catch(e){
+      lastError = e;
+      console.error('Storage-Aktion fehlgeschlagen (Versuch', attempt + 1, ')', e);
+      if(attempt < maxAttempts - 1){
+        await wait(400 * Math.pow(2, attempt)); // 400ms, 800ms, 1.6s
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function persistEx(ex){
   const key = getStorageKey(ex);
   const shared = isShared();
@@ -1717,16 +1740,47 @@ function showRandomQuote(){
 
 /* ===== Konto-System: Registrierung / Anmeldung ===== */
 
+// Einfacher, dependency-freier Hash als Fallback (cyrb53-Variante).
+// crypto.subtle steht nur in "secure contexts" zur Verfügung; in mancher
+// Vorschau-Umgebung (z.B. eingebettetes iframe ohne HTTPS-Kontext) fehlt
+// das, wodurch die Registrierung sonst fehlschlagen würde.
+function simpleHash(str, seed){
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for(let i = 0; i < str.length; i++){
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+}
+
 async function sha256Hex(text){
-  const bytes = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  try{
+    if(window.crypto && window.crypto.subtle && window.crypto.subtle.digest){
+      const bytes = new TextEncoder().encode(text);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  }catch(e){
+    console.error('crypto.subtle nicht verfügbar, nutze Fallback-Hash', e);
+  }
+  // Fallback ohne Web Crypto API
+  return simpleHash(text, 0) + simpleHash(text, 1) + simpleHash(text, 2);
 }
 
 function randomSalt(){
-  const arr = new Uint8Array(16);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+  try{
+    if(window.crypto && window.crypto.getRandomValues){
+      const arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  }catch(e){ /* fällt durch zum Fallback */ }
+  let s = '';
+  for(let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16);
+  return s;
 }
 
 function isValidUsername(u){
@@ -1809,7 +1863,7 @@ async function persistExerciseMeta(){
   Object.keys(EX).forEach(key => { labels[key] = EX[key].label; });
   const meta = { labels, hidden: hiddenExercises };
   try{
-    await window.storage.set(exerciseMetaKey(), JSON.stringify(meta), isShared());
+    await storageWithRetry(() => window.storage.set(exerciseMetaKey(), JSON.stringify(meta), isShared()));
   }catch(e){
     console.error('Konnte Übungs-Anpassungen nicht speichern', e);
   }
@@ -1888,6 +1942,7 @@ async function saveExRename(){
   await persistExerciseMeta();
   statusEl.textContent = 'Gespeichert.';
   statusEl.className = 'auth-status success';
+  setTimeout(closeManageEx, 700);
 }
 
 let deleteExConfirmActive = false;
@@ -2109,7 +2164,7 @@ async function persistCustomExercises(){
     .filter(k => !EX[k].builtin)
     .map(k => ({ key: k, label: EX[k].label, defaultGoals: EX[k].defaultGoals }));
   try{
-    await window.storage.set(customExercisesKey(), JSON.stringify(list), isShared());
+    await storageWithRetry(() => window.storage.set(customExercisesKey(), JSON.stringify(list), isShared()));
   }catch(e){
     console.error('Konnte neue Übungen nicht speichern', e);
   }
@@ -2211,7 +2266,7 @@ function updateAuthUI(){
 
 async function loginSuccess(username){
   currentUser = username;
-  try{ await window.storage.set('session', JSON.stringify({ username }), false); }catch(e){ /* ignorieren */ }
+  try{ await storageWithRetry(() => window.storage.set('session', JSON.stringify({ username }), false), 2); }catch(e){ /* ignorieren */ }
   updateAuthUI();
   await reloadAllData();
 }
@@ -2300,7 +2355,7 @@ async function submitAuth(){
     try{
       let taken = false;
       try{
-        const existing = await window.storage.get(`account__${username}`, true);
+        const existing = await storageWithRetry(() => window.storage.get(`account__${username}`, true), 2);
         taken = !!(existing && existing.value);
       }catch(e){ taken = false; }
 
@@ -2313,7 +2368,7 @@ async function submitAuth(){
 
       const salt = randomSalt();
       const hash = await sha256Hex(salt + password);
-      await window.storage.set(`account__${username}`, JSON.stringify({ salt, hash }), true);
+      await storageWithRetry(() => window.storage.set(`account__${username}`, JSON.stringify({ salt, hash }), true));
 
       await loginSuccess(username);
       statusEl.textContent = 'Konto erstellt und angemeldet.';
@@ -2321,7 +2376,7 @@ async function submitAuth(){
       setTimeout(closeAuthModal, 900);
     }catch(e){
       console.error('Registrierung fehlgeschlagen', e);
-      statusEl.textContent = 'Registrierung fehlgeschlagen. Bitte erneut versuchen.';
+      statusEl.textContent = 'Registrierung fehlgeschlagen: ' + (e && e.message ? e.message : 'Unbekannter Fehler') + '. Bitte erneut versuchen.';
       statusEl.className = 'auth-status error';
     }
     submitBtn.disabled = false;
@@ -2339,7 +2394,7 @@ async function submitAuth(){
     try{
       let record = null;
       try{
-        const r = await window.storage.get(`account__${username}`, true);
+        const r = await storageWithRetry(() => window.storage.get(`account__${username}`, true), 2);
         if(r && r.value) record = JSON.parse(r.value);
       }catch(e){ record = null; }
 
@@ -2383,8 +2438,28 @@ document.addEventListener('keydown', (e) => {
   });
 });
 
+// Legt einmalig ein vordefiniertes Konto an, falls es noch nicht existiert.
+// Dadurch muss man sich nur noch anmelden, nicht mehr selbst registrieren.
+async function bootstrapSeedAccount(seedUsername, seedPassword){
+  try{
+    const existing = await storageWithRetry(() => window.storage.get(`account__${seedUsername}`, true), 2);
+    if(existing && existing.value) return; // existiert bereits
+  }catch(e){
+    // kein bestehendes Konto gefunden -> unten anlegen
+  }
+  try{
+    const salt = randomSalt();
+    const hash = await sha256Hex(salt + seedPassword);
+    await storageWithRetry(() => window.storage.set(`account__${seedUsername}`, JSON.stringify({ salt, hash }), true));
+    console.log('Konto automatisch angelegt:', seedUsername);
+  }catch(e){
+    console.error('Konnte Konto nicht automatisch anlegen', seedUsername, e);
+  }
+}
+
 async function init(){
   showRandomQuote();
+  await bootstrapSeedAccount('David', 'David.088');
   try{
     const s = await window.storage.get('session', false);
     if(s && s.value){
