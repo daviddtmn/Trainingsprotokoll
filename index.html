@@ -230,6 +230,11 @@
     font-family:'Inter', sans-serif;
   }
   .modal-body input:focus{ outline:2px solid var(--steel); outline-offset:1px; }
+  .field-hint{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:-6px 0 14px;
+  }
   .auth-status{
     font-size:13px;
     font-weight:600;
@@ -295,6 +300,31 @@
     color:var(--ink);
   }
   h2.section-title:first-of-type{ margin-top:0; }
+
+  .history-section-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin:28px 0 12px;
+  }
+  .history-section-head:first-of-type{ margin-top:0; }
+  .history-section-head h2.section-title{ margin:0; }
+  .add-past-btn{
+    width:34px;
+    height:34px;
+    flex-shrink:0;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--field);
+    color:var(--ink-soft);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .add-past-btn:hover{ background:var(--steel-light); color:var(--ink); }
+  .add-past-btn svg{ width:18px; height:18px; }
 
   .card{
     background:var(--surface);
@@ -908,7 +938,12 @@
         <h1>Verlauf</h1>
 
         <div id="historySectionPushups">
-          <h2 class="section-title" id="historyTitlePushups">Liegestütze</h2>
+          <div class="history-section-head">
+            <h2 class="section-title" id="historyTitlePushups">Liegestütze</h2>
+            <button class="add-past-btn" onclick="openAddPast('pushups')" aria-label="Vergangenen Tag nachtragen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            </button>
+          </div>
           <div class="card">
             <div class="history-list" id="historyList">
               <div class="empty-state">Noch keine Einträge. Leg los!</div>
@@ -917,7 +952,12 @@
         </div>
 
         <div id="historySectionPullups">
-          <h2 class="section-title" id="historyTitlePullups">Pull-Ups</h2>
+          <div class="history-section-head">
+            <h2 class="section-title" id="historyTitlePullups">Pull-Ups</h2>
+            <button class="add-past-btn" onclick="openAddPast('pullups')" aria-label="Vergangenen Tag nachtragen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            </button>
+          </div>
           <div class="card">
             <div class="history-list" id="historyListPU">
               <div class="empty-state">Noch keine Einträge. Leg los!</div>
@@ -1033,6 +1073,26 @@
       <p class="auth-status" id="manageExStatus"></p>
       <button class="auth-submit-btn" onclick="saveExRename()">Speichern</button>
       <button class="danger-btn wide" id="manageExDeleteBtn" onclick="requestDeleteEx()">Übung löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addPastOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAddPast()" aria-label="Schließen">✕</button>
+    <p class="modal-title">Tag nachtragen</p>
+    <div class="modal-body">
+      <div class="field">
+        <label for="addPastDateInput">Datum</label>
+        <input type="date" id="addPastDateInput">
+      </div>
+      <div class="field">
+        <label for="addPastRepsInput">Anzahl</label>
+        <input type="number" id="addPastRepsInput" min="1" step="1" inputmode="numeric">
+      </div>
+      <p class="field-hint" id="addPastHint">Wird zu einem bereits vorhandenen Eintrag für diesen Tag hinzugezählt.</p>
+      <p class="auth-status" id="addPastStatus"></p>
+      <button class="auth-submit-btn" onclick="submitAddPast()">Hinzufügen</button>
     </div>
   </div>
 </div>
@@ -1692,6 +1752,7 @@ const HISTORY_SECTION_ID = { pushups: 'historySectionPushups', pullups: 'history
 const SETTINGS_SECTION_ID = { pushups: 'settingsSectionPushups', pullups: 'settingsSectionPullups' };
 
 let manageExKey = null;
+let addPastKey = null;
 let hiddenExercises = [];
 
 function exerciseMetaKey(){
@@ -1832,6 +1893,67 @@ async function performDeleteEx(key){
   closeManageEx();
 }
 
+/* ===== Vergangenen Tag nachtragen (Kalender-Button im Verlauf) ===== */
+
+function openAddPast(key){
+  addPastKey = key;
+  const dateInput = document.getElementById('addPastDateInput');
+  const repsInput = document.getElementById('addPastRepsInput');
+  const statusEl = document.getElementById('addPastStatus');
+  dateInput.value = todayKey();
+  dateInput.max = todayKey();
+  repsInput.value = '';
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+  document.getElementById('addPastOverlay').classList.add('open');
+  setTimeout(() => dateInput.focus(), 50);
+}
+
+function closeAddPast(){
+  document.getElementById('addPastOverlay').classList.remove('open');
+  addPastKey = null;
+}
+
+async function submitAddPast(){
+  if(!addPastKey) return;
+  const ex = EX[addPastKey];
+  const dateInput = document.getElementById('addPastDateInput');
+  const repsInput = document.getElementById('addPastRepsInput');
+  const statusEl = document.getElementById('addPastStatus');
+  const dateStr = dateInput.value;
+  const repsRaw = repsInput.value.trim();
+
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+
+  if(!dateStr){
+    statusEl.textContent = 'Bitte ein Datum wählen.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+  if(dateStr > todayKey()){
+    statusEl.textContent = 'Das Datum darf nicht in der Zukunft liegen.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+  if(!/^[0-9]+$/.test(repsRaw) || parseInt(repsRaw, 10) <= 0){
+    statusEl.textContent = 'Bitte eine Anzahl größer als 0 eingeben.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+
+  const reps = parseInt(repsRaw, 10);
+  const current = ex.data.days[dateStr] || 0;
+  ex.data.days[dateStr] = current + reps;
+
+  await runPersist(ex);
+  renderEx(ex);
+
+  statusEl.textContent = 'Eintrag hinzugefügt.';
+  statusEl.className = 'auth-status success';
+  setTimeout(closeAddPast, 700);
+}
+
 /* ===== Neue Übung erstellen ===== */
 
 const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -1950,7 +2072,12 @@ function homeCardHTML(ex){
 function historySectionHTML(ex){
   return `
         <div id="${historySectionElId(ex.key)}">
-          <h2 class="section-title" id="${historyTitleElId(ex.key)}">${escapeHtml(ex.label)}</h2>
+          <div class="history-section-head">
+            <h2 class="section-title" id="${historyTitleElId(ex.key)}">${escapeHtml(ex.label)}</h2>
+            <button class="add-past-btn" onclick="openAddPast('${ex.key}')" aria-label="Vergangenen Tag nachtragen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            </button>
+          </div>
           <div class="card">
             <div class="history-list" id="${elId(ex,'historyList')}">
               <div class="empty-state">Noch keine Einträge. Leg los!</div>
@@ -2110,6 +2237,13 @@ document.getElementById('manageExOverlay').addEventListener('click', (e) => {
 });
 document.getElementById('manageExNameInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') saveExRename();
+});
+
+document.getElementById('addPastOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'addPastOverlay') closeAddPast();
+});
+document.getElementById('addPastRepsInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') submitAddPast();
 });
 
 
