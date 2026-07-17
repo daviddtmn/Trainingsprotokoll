@@ -315,15 +315,15 @@
     height:34px;
     flex-shrink:0;
     border-radius:8px;
-    border:1px solid var(--line);
+    border:1px solid var(--success);
     background:var(--field);
-    color:var(--ink-soft);
+    color:var(--success);
     cursor:pointer;
     display:flex;
     align-items:center;
     justify-content:center;
   }
-  .add-past-btn:hover{ background:var(--steel-light); color:var(--ink); }
+  .add-past-btn:hover{ background:var(--success); color:#0A1420; }
   .add-past-btn svg{ width:18px; height:18px; }
 
   .card{
@@ -476,17 +476,23 @@
     height:120px;
   }
   .week-chart.is-dense{
-    gap:2px;
+    gap:3px;
+    height:132px;
   }
   .week-chart.is-dense .day-value{
-    font-size:9px;
+    display:none;
+  }
+  .week-chart.is-dense .day-col.is-today .day-value{
+    display:block;
+    font-size:10px;
   }
   .week-chart.is-dense .day-name{
     font-size:9px;
-    margin-top:5px;
+    margin-top:6px;
   }
   .day-col{
     flex:1;
+    min-width:0;
     display:flex;
     flex-direction:column;
     align-items:center;
@@ -498,15 +504,26 @@
     display:flex;
     align-items:flex-end;
     width:100%;
+    background:var(--field);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .week-chart.is-dense .day-bar-track{
+    border-radius:2px;
   }
   .day-bar{
     width:100%;
     background:var(--steel-light);
     border-radius:4px 4px 0 0;
-    min-height:2px;
-    transition:height 0.3s ease;
+    min-height:3px;
+    transition:height 0.3s ease, background 0.15s ease;
+  }
+  .week-chart.is-dense .day-bar{
+    border-radius:2px 2px 0 0;
   }
   .day-col.is-today .day-bar{ background:var(--effort); }
+  .day-col:hover .day-bar{ background:var(--steel); }
+  .day-col.is-today:hover .day-bar{ background:var(--effort); }
   .day-value{
     font-size:11px;
     color:var(--ink-soft);
@@ -701,22 +718,8 @@
   .home-card-sub{
     font-size:13px;
     color:var(--ink-soft);
-    margin-bottom:14px;
-  }
-  .home-progress{
-    height:8px;
-    border-radius:6px;
-    background:var(--line);
-    overflow:hidden;
     margin-bottom:16px;
   }
-  .home-progress .fill{
-    height:100%;
-    background:var(--effort);
-    transition:width 0.4s ease;
-    border-radius:6px;
-  }
-  .home-progress.goal-met .fill{ background:var(--success); }
   .home-card-footer{
     display:flex;
     justify-content:space-between;
@@ -806,8 +809,7 @@
           <div class="home-card" id="homeCardPushups">
             <div class="home-card-label" id="homeCardLabelPushups">Liegestütze</div>
             <div class="home-card-number" id="homeTodayPushups">0</div>
-            <div class="home-card-sub" id="homeGoalTextPushups">Ziel: 50 heute</div>
-            <div class="home-progress" id="homeProgressPushups"><div class="fill" style="width:0%"></div></div>
+            <div class="home-card-sub" id="homeGoalTextPushups">Insgesamt</div>
             <div class="home-card-footer">
               <span class="home-card-streak" id="homeStreakPushups">0 Tage Streak</span>
               <button class="home-card-link" data-page="pushups">Öffnen →</button>
@@ -816,8 +818,7 @@
           <div class="home-card" id="homeCardPullups">
             <div class="home-card-label" id="homeCardLabelPullups">Pull-Ups</div>
             <div class="home-card-number" id="homeTodayPullups">0</div>
-            <div class="home-card-sub" id="homeGoalTextPullups">Ziel: 10 heute</div>
-            <div class="home-progress" id="homeProgressPullups"><div class="fill" style="width:0%"></div></div>
+            <div class="home-card-sub" id="homeGoalTextPullups">Insgesamt</div>
             <div class="home-card-footer">
               <span class="home-card-streak" id="homeStreakPullups">0 Tage Streak</span>
               <button class="home-card-link" data-page="pullups">Öffnen →</button>
@@ -1432,11 +1433,9 @@ function renderEx(ex){
 
 const HOME_TODAY_ID = { pushups: 'homeTodayPushups', pullups: 'homeTodayPullups' };
 const HOME_GOALTEXT_ID = { pushups: 'homeGoalTextPushups', pullups: 'homeGoalTextPullups' };
-const HOME_PROGRESS_ID = { pushups: 'homeProgressPushups', pullups: 'homeProgressPullups' };
 const HOME_STREAK_ID = { pushups: 'homeStreakPushups', pullups: 'homeStreakPullups' };
 function homeTodayElId(key){ return HOME_TODAY_ID[key] || `homeToday_${key}`; }
 function homeGoalTextElId(key){ return HOME_GOALTEXT_ID[key] || `homeGoalText_${key}`; }
-function homeProgressElId(key){ return HOME_PROGRESS_ID[key] || `homeProgress_${key}`; }
 function homeStreakElId(key){ return HOME_STREAK_ID[key] || `homeStreak_${key}`; }
 
 function renderHome(){
@@ -1444,22 +1443,12 @@ function renderHome(){
     const ex = EX[key];
     if(!ex.ready) return;
     const totals = totalsByDate(ex);
-    const today = todayKey();
-    const todayTotal = totals[today] || 0;
-    const goal = ex.data.goals.day;
+    const allTime = Object.values(ex.data.days).reduce((sum, v) => sum + v, 0);
 
     const todayEl = document.getElementById(homeTodayElId(key));
-    if(todayEl) todayEl.textContent = todayTotal;
+    if(todayEl) todayEl.textContent = allTime;
     const goalTextEl = document.getElementById(homeGoalTextElId(key));
-    if(goalTextEl) goalTextEl.textContent = `Ziel: ${goal} heute`;
-
-    const pct = Math.min(100, Math.round((todayTotal / goal) * 100));
-    const progressEl = document.getElementById(homeProgressElId(key));
-    if(progressEl){
-      const fill = progressEl.querySelector('.fill');
-      if(fill) fill.style.width = pct + '%';
-      progressEl.classList.toggle('goal-met', todayTotal >= goal);
-    }
+    if(goalTextEl) goalTextEl.textContent = 'Insgesamt';
 
     const streakEl = document.getElementById(homeStreakElId(key));
     if(streakEl) streakEl.textContent = `${computeStreak(ex, totals)} Tage Streak`;
@@ -1516,7 +1505,7 @@ function buildChartData(ex, period){
       values: days.map(d => totals[todayKey(d)] || 0),
       labels: days.map(d => String(d.getDate())),
       highlightIdx: days.findIndex(d => todayKey(d) === today),
-      sparseLabels: true
+      uniformHeight: true
     };
   }
 
@@ -1553,6 +1542,7 @@ function renderChart(ex){
 
     const col = document.createElement('div');
     col.className = 'day-col' + (isHighlight ? ' is-today' : '');
+    col.title = `${labels[i]}: ${val}`;
     col.innerHTML = `
       <div class="day-value">${val > 0 ? val : ''}</div>
       <div class="day-bar-track"><div class="day-bar" style="height:${val > 0 ? heightPct : 2}%"></div></div>
@@ -2060,8 +2050,7 @@ function homeCardHTML(ex){
           <div class="home-card" id="${homeCardElId(ex.key)}">
             <div class="home-card-label" id="${homeLabelElId(ex.key)}">${escapeHtml(ex.label)}</div>
             <div class="home-card-number" id="${elId(ex,'homeToday')}">0</div>
-            <div class="home-card-sub" id="${elId(ex,'homeGoalText')}">Ziel: ${ex.defaultGoals.day} heute</div>
-            <div class="home-progress" id="${elId(ex,'homeProgress')}"><div class="fill" style="width:0%"></div></div>
+            <div class="home-card-sub" id="${elId(ex,'homeGoalText')}">Insgesamt</div>
             <div class="home-card-footer">
               <span class="home-card-streak" id="${elId(ex,'homeStreak')}">0 Tage Streak</span>
               <button class="home-card-link" data-page="${ex.key}" onclick="switchToPage('${ex.key}')">Öffnen →</button>
