@@ -1,0 +1,2418 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness-Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #16151A;
+    --surface: #1F1E24;
+    --ink: #F2F0EA;
+    --ink-soft: #928E8A;
+    --steel: #7C8797;
+    --steel-light: #545B66;
+    --effort: #4C8DFF;
+    --effort-soft: #1E2B47;
+    --success: #4CAF77;
+    --line: #333139;
+    --field: #2A2832;
+    --radius: 14px;
+    --sidebar-w: 220px;
+    --sidebar-w-collapsed: 68px;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+  }
+
+  .app-shell{
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:var(--sidebar-w);
+    flex-shrink:0;
+    background:var(--surface);
+    border-right:1px solid var(--line);
+    padding:16px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+    transition:width 0.22s ease;
+    overflow-x:hidden;
+    overflow-y:auto;
+    position:sticky;
+    top:0;
+    height:100vh;
+    align-self:flex-start;
+  }
+  .sidebar.collapsed{
+    width:var(--sidebar-w-collapsed);
+  }
+
+  .sidebar-top{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:4px 4px 8px;
+  }
+  .sidebar-toggle{
+    width:36px;
+    height:36px;
+    flex-shrink:0;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--field);
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .sidebar-toggle:hover{ background:var(--steel-light); }
+  .sidebar-toggle svg{ width:18px; height:18px; }
+
+  .sidebar-title{
+    font-family:'Oswald', sans-serif;
+    font-size:15px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    white-space:nowrap;
+    color:var(--ink);
+  }
+  .sidebar.collapsed .sidebar-title{ display:none; }
+
+  .sidebar-nav{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .sidebar-section-label{
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:10px 10px 2px;
+    white-space:nowrap;
+  }
+  .sidebar.collapsed .sidebar-section-label{ display:none; }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    width:100%;
+    padding:10px 10px;
+    border-radius:10px;
+    border:none;
+    background:none;
+    color:var(--ink-soft);
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    text-align:left;
+    white-space:nowrap;
+  }
+  .nav-item:hover{ background:var(--field); color:var(--ink); }
+  .nav-item.active{ background:var(--effort-soft); color:var(--effort); }
+  .nav-item svg{ width:20px; height:20px; flex-shrink:0; }
+  .sidebar.collapsed .nav-item{ justify-content:center; padding:10px 0; }
+  .sidebar.collapsed .nav-label{ display:none; }
+
+  /* Zahnrad zum Umbenennen/Löschen einer Übung, erscheint nur bei Hover */
+  .nav-item-wrapper{
+    position:relative;
+    display:flex;
+    align-items:center;
+  }
+  .nav-item-wrapper .nav-item{ flex:1; padding-right:32px; }
+
+  /* Griff zum Verschieben (Drag & Drop) der Übungen in der Sidebar */
+  .nav-drag-handle{
+    width:22px;
+    height:36px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    cursor:grab;
+    touch-action:none;
+    padding:0;
+    border-radius:6px;
+  }
+  .nav-drag-handle:hover{ color:var(--ink); background:var(--field); }
+  .nav-drag-handle:active{ cursor:grabbing; }
+  .nav-drag-handle svg{ width:14px; height:14px; }
+  .sidebar.collapsed .nav-drag-handle{ display:none; }
+  .sidebar.collapsed .nav-item-wrapper .nav-item{ padding-left:0; }
+
+  .nav-item-wrapper.dragging{
+    box-shadow:0 8px 24px rgba(0,0,0,0.45);
+    border-radius:10px;
+    background:var(--surface);
+  }
+  .nav-drag-placeholder{
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    margin:1px 0;
+    box-sizing:border-box;
+  }
+  .nav-gear{
+    position:absolute;
+    right:4px;
+    top:50%;
+    transform:translateY(-50%);
+    width:26px;
+    height:26px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    cursor:pointer;
+    border-radius:6px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.15s ease;
+  }
+  .nav-gear svg{ width:15px; height:15px; }
+  .nav-gear:hover{ background:var(--field); color:var(--ink); }
+  .nav-item-wrapper:hover .nav-gear{ opacity:1; pointer-events:auto; }
+  .sidebar.collapsed .nav-gear{ display:none; }
+  .sidebar.collapsed .nav-item-wrapper .nav-item{ padding-right:0; }
+
+  .add-exercise-nav-btn{
+    color:var(--ink-soft);
+    border:1px dashed var(--line);
+  }
+  .add-exercise-nav-btn:hover{ color:var(--effort); border-color:var(--effort); background:var(--field); }
+
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(8,8,10,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:100;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.18s ease;
+  }
+  .modal-overlay.open{ opacity:1; pointer-events:auto; }
+  .modal{
+    position:relative;
+    width:100%;
+    max-width:380px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:28px;
+  }
+  .modal-close{
+    position:absolute;
+    top:12px;
+    right:12px;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+    padding:6px;
+  }
+  .modal-close:hover{ color:var(--ink); }
+  .modal-title{
+    font-family:'Oswald', sans-serif;
+    font-size:20px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    margin:0 0 18px;
+  }
+  .modal-body .field{ margin-bottom:14px; }
+  .modal-body label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .modal-body input{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:var(--field);
+    color:var(--ink);
+    font-size:15px;
+    font-family:'Inter', sans-serif;
+  }
+  .modal-body input:focus{ outline:2px solid var(--steel); outline-offset:1px; }
+  .field-hint{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:-6px 0 14px;
+  }
+  .unit-toggle{
+    display:flex;
+    gap:8px;
+  }
+  .unit-toggle-btn{
+    flex:1;
+    padding:9px 4px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:var(--field);
+    color:var(--ink-soft);
+    font-family:'Inter', sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .unit-toggle-btn.active{
+    background:var(--effort);
+    border-color:var(--effort);
+    color:#0A1420;
+  }
+  .field-row{
+    display:flex;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .field-row .field{
+    flex:1;
+    margin-bottom:0;
+  }
+  .auth-status{
+    font-size:13px;
+    font-weight:600;
+    min-height:16px;
+    margin:0 0 12px;
+  }
+  .auth-status.success{ color:var(--success); }
+  .auth-status.error{ color:#E4735C; }
+  .auth-submit-btn{
+    width:100%;
+    padding:12px 0;
+    border-radius:10px;
+    border:none;
+    background:var(--ink);
+    color:var(--surface);
+    font-family:'Oswald', sans-serif;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .auth-submit-btn:hover{ background:var(--effort); }
+  .auth-submit-btn:disabled{ opacity:0.6; cursor:default; }
+
+  /* Main content */
+  .main-content{
+    flex:1;
+    padding:32px 20px 64px;
+    min-width:0;
+  }
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+  }
+
+  .page{ display:none; }
+  .page.active{ display:block; }
+
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-weight:600;
+    margin:0 0 4px;
+  }
+
+  h1{
+    font-family:'Oswald', sans-serif;
+    font-size:34px;
+    font-weight:600;
+    letter-spacing:0.01em;
+    margin:0 0 28px;
+    text-transform:uppercase;
+  }
+
+  h2.section-title{
+    font-family:'Oswald', sans-serif;
+    font-size:18px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    font-weight:600;
+    margin:28px 0 12px;
+    color:var(--ink);
+  }
+  h2.section-title:first-of-type{ margin-top:0; }
+
+  .history-section-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin:28px 0 12px;
+  }
+  .history-section-head:first-of-type{ margin-top:0; }
+  .history-section-head h2.section-title{ margin:0; }
+  .add-past-btn{
+    width:34px;
+    height:34px;
+    flex-shrink:0;
+    border-radius:8px;
+    border:1px solid var(--success);
+    background:var(--field);
+    color:var(--success);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .add-past-btn:hover{ background:var(--success); color:#0A1420; }
+  .add-past-btn svg{ width:18px; height:18px; }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:24px;
+    margin-bottom:16px;
+  }
+
+  /* Counter card */
+  .counter-card{
+    text-align:center;
+    position:relative;
+  }
+  .counter-label{
+    font-size:13px;
+    color:var(--ink-soft);
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .counter-number{
+    font-family:'Oswald', sans-serif;
+    font-size:96px;
+    line-height:1;
+    font-weight:700;
+    color:var(--ink);
+    margin:6px 0 2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .counter-goal{
+    font-size:14px;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+  }
+
+  /* Plate loader progress bar */
+  .plate-loader{
+    display:flex;
+    gap:4px;
+    height:16px;
+    border-radius:8px;
+    overflow:hidden;
+    background:var(--line);
+    margin:0 auto 20px;
+    max-width:480px;
+  }
+  .plate-loader .fill{
+    background:var(--effort);
+    height:100%;
+    transition:width 0.4s ease;
+    border-radius:8px 0 0 8px;
+  }
+  .plate-loader.goal-met .fill{
+    background:var(--success);
+    border-radius:8px;
+  }
+
+  .quick-adds{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .quick-adds button{
+    font-family:'Oswald', sans-serif;
+    font-size:18px;
+    font-weight:600;
+    padding:12px 22px;
+    border-radius:10px;
+    border:1.5px solid var(--ink);
+    background:var(--ink);
+    color:var(--surface);
+    cursor:pointer;
+    transition:transform 0.08s ease, background 0.15s ease;
+  }
+  .quick-adds button:hover{ background:var(--effort); border-color:var(--effort); }
+  .quick-adds button:active{ transform:scale(0.95); }
+  .quick-adds button.btn-minus{
+    background:var(--field);
+    border-color:var(--steel);
+    color:var(--steel);
+  }
+  .quick-adds button.btn-minus:hover{ background:var(--steel); border-color:var(--steel); color:var(--ink); }
+
+  .step-input-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .step-input-row input{
+    flex:1;
+    min-width:0;
+    padding:12px 14px;
+    border-radius:10px;
+    border:1.5px solid var(--line);
+    background:var(--field);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    font-size:16px;
+    text-align:center;
+  }
+  .step-input-row input:focus{ outline:2px solid var(--steel); outline-offset:1px; }
+  .step-input-row button{
+    font-family:'Oswald', sans-serif;
+    font-size:16px;
+    font-weight:600;
+    padding:12px 20px;
+    border-radius:10px;
+    border:1.5px solid var(--ink);
+    background:var(--ink);
+    color:var(--surface);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:transform 0.08s ease, background 0.15s ease;
+  }
+  .step-input-row button:hover{ background:var(--effort); border-color:var(--effort); }
+  .step-input-row button:active{ transform:scale(0.95); }
+
+  /* Stats row */
+  .stats-row{
+    display:flex;
+    gap:16px;
+  }
+  .stat-card{
+    flex:1;
+    text-align:center;
+  }
+  .stat-number{
+    font-family:'Oswald', sans-serif;
+    font-size:32px;
+    font-weight:600;
+  }
+  .stat-number.streak{ color:var(--effort); }
+  .stat-label{
+    font-size:12px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    margin-top:2px;
+  }
+
+  /* Period selector */
+  .period-tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:16px;
+  }
+  .period-tabs button{
+    flex:1;
+    padding:8px 0;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:var(--field);
+    color:var(--ink-soft);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .period-tabs button:hover{ color:var(--ink); }
+  .period-tabs button.active{
+    background:var(--effort);
+    border-color:var(--effort);
+    color:#0A1420;
+  }
+
+  /* Week chart */
+  .card-title{
+    font-family:'Oswald', sans-serif;
+    font-size:15px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:600;
+    margin:0 0 16px;
+    color:var(--ink-soft);
+  }
+  .week-chart{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    height:120px;
+    padding-top:20px;
+  }
+  .week-chart.is-dense{
+    gap:3px;
+    height:132px;
+    padding-top:16px;
+  }
+  .week-chart.is-dense .day-value{
+    font-size:9px;
+  }
+  .week-chart.is-dense .day-col.is-today .day-value{
+    font-size:10px;
+    font-weight:700;
+  }
+  .week-chart.is-dense .day-name{
+    font-size:9px;
+    margin-top:6px;
+  }
+  .day-col{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    height:100%;
+  }
+  .day-bar-track{
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:flex-end;
+    width:100%;
+    background:var(--field);
+    border-radius:4px;
+  }
+  .week-chart.is-dense .day-bar-track{
+    border-radius:2px;
+  }
+  .day-bar{
+    width:100%;
+    background:var(--steel-light);
+    border-radius:4px 4px 0 0;
+    min-height:3px;
+    transition:height 0.3s ease, background 0.15s ease;
+  }
+  .week-chart.is-dense .day-bar{
+    border-radius:2px 2px 0 0;
+  }
+  .day-col.is-today .day-bar{ background:var(--effort); }
+  .day-col:hover .day-bar{ background:var(--steel); }
+  .day-col.is-today:hover .day-bar{ background:var(--effort); }
+  .day-value{
+    position:absolute;
+    left:50%;
+    transform:translate(-50%, calc(-100% - 2px));
+    font-size:11px;
+    line-height:1;
+    color:var(--ink-soft);
+    font-weight:600;
+    white-space:nowrap;
+    pointer-events:none;
+    transition:bottom 0.3s ease;
+  }
+  .day-name{
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:8px;
+    text-transform:uppercase;
+  }
+  .day-col.is-today .day-name{ color:var(--effort); font-weight:700; }
+
+  /* Goal setting */
+  .goal-grid{
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .goal-field label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .goal-field input{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    font-size:15px;
+    text-align:center;
+    background:var(--field);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+  }
+  .goal-field input:focus{ outline:2px solid var(--steel); outline-offset:1px; }
+  .goal-save-btn{
+    padding:10px 18px;
+    border-radius:8px;
+    border:1.5px solid var(--steel);
+    background:var(--field);
+    color:var(--steel);
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .goal-save-btn:hover{ background:var(--steel); color:white; }
+  .goal-status{
+    font-size:13px;
+    font-weight:600;
+    margin:10px 0 0;
+    min-height:16px;
+  }
+  .goal-status.success{ color:var(--success); }
+  .goal-status.error{ color:#E4735C; }
+
+  .settings-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:6px 0;
+  }
+  .settings-row-label{ font-size:14px; }
+  .settings-row-desc{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .danger-btn{
+    padding:8px 14px;
+    border-radius:8px;
+    border:1.5px solid #A64B3A;
+    background:none;
+    color:#E4735C;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .danger-btn:hover{ background:#3A2620; }
+  .danger-btn.wide{
+    width:100%;
+    text-align:center;
+    margin-top:10px;
+    padding:11px 0;
+    border-radius:10px;
+  }
+
+  /* History */
+  .history-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .history-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 12px;
+    background:var(--field);
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-size:14px;
+  }
+  .history-item .h-info{ display:flex; gap:10px; align-items:baseline; }
+  .history-item .h-reps{
+    font-family:'Oswald', sans-serif;
+    font-weight:600;
+    color:var(--ink);
+  }
+  .history-item .h-date{ color:var(--ink-soft); font-size:12px; }
+  .history-item .h-del{
+    border:none;
+    background:none;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:16px;
+    padding:2px 6px;
+    border-radius:6px;
+  }
+  .history-item .h-del:hover{ color:var(--effort); background:var(--effort-soft); }
+  .empty-state{
+    color:var(--ink-soft);
+    font-size:14px;
+    text-align:center;
+    padding:20px 0;
+  }
+
+  .status-note{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:20px;
+  }
+
+  /* Home overview */
+  .quote-block{
+    text-align:center;
+    padding:8px 16px 32px;
+    max-width:620px;
+    margin:0 auto;
+  }
+  .quote-text{
+    font-family:'Oswald', sans-serif;
+    font-size:30px;
+    font-weight:500;
+    line-height:1.35;
+    color:var(--ink);
+    font-style:italic;
+  }
+  .quote-text::before{ content:'“'; color:var(--effort); }
+  .quote-text::after{ content:'”'; color:var(--effort); }
+
+  .quote-block.compact{
+    padding:0 12px 20px;
+    max-width:520px;
+  }
+  .quote-block.compact .quote-text{
+    font-size:17px;
+    line-height:1.35;
+  }
+
+  .home-grid{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .home-card{
+    flex:1;
+    min-width:220px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+  }
+  .home-card-label{
+    font-family:'Oswald', sans-serif;
+    font-size:15px;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    font-weight:600;
+    margin-bottom:14px;
+  }
+  .home-card-number{
+    font-family:'Oswald', sans-serif;
+    font-size:52px;
+    font-weight:700;
+    line-height:1;
+    margin-bottom:4px;
+  }
+  .home-card-sub{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-bottom:16px;
+  }
+  .home-card-footer{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:13px;
+  }
+  .home-card-streak{ color:var(--effort); font-weight:600; }
+  .home-card-link{
+    background:none;
+    border:none;
+    color:var(--success);
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    padding:0;
+  }
+  .home-card-link:hover{ color:#63C98A; text-decoration:underline; }
+
+  /* Anzeige, solange noch keine Übung angelegt wurde */
+  .empty-app-state{
+    text-align:center;
+    padding:48px 20px;
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius);
+    color:var(--ink-soft);
+  }
+  .empty-app-state p{ margin:0 0 18px; font-size:15px; }
+  .empty-app-state .auth-submit-btn{ width:auto; padding:12px 26px; }
+
+  @media (max-width:640px){
+    .sidebar{ position:fixed; top:0; left:0; bottom:0; z-index:20; width:var(--sidebar-w-collapsed); }
+
+    /* Auf dem Handy standardmäßig eingeklappt: nur Icons sichtbar */
+    .sidebar .sidebar-title,
+    .sidebar .sidebar-section-label,
+    .sidebar .nav-label,
+    .sidebar .nav-gear,
+    .sidebar .nav-drag-handle{ display:none; }
+    .sidebar .nav-item{ justify-content:center; padding:10px 0; }
+    .sidebar .nav-item-wrapper .nav-item{ padding-right:0; }
+
+    /* Ausgeklappter Zustand über den 3-Striche-Button */
+    .sidebar.expanded-mobile{ width:var(--sidebar-w); box-shadow:4px 0 24px rgba(0,0,0,0.35); }
+    .sidebar.expanded-mobile .sidebar-title{ display:inline; }
+    .sidebar.expanded-mobile .sidebar-section-label{ display:block; }
+    .sidebar.expanded-mobile .nav-label{ display:inline; }
+    .sidebar.expanded-mobile .nav-gear{ display:flex; }
+    .sidebar.expanded-mobile .nav-drag-handle{ display:flex; }
+    .sidebar.expanded-mobile .nav-item{ justify-content:flex-start; padding:10px 10px; }
+    .sidebar.expanded-mobile .nav-item-wrapper .nav-item{ padding-right:32px; }
+
+    .main-content{ margin-left:var(--sidebar-w-collapsed); padding:24px 16px 64px; }
+    .counter-number{ font-size:72px; }
+    .quick-adds button{ padding:10px 16px; font-size:16px; }
+    .quote-text{ font-size:22px; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Navigation ein-/ausklappen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <span class="sidebar-title">Fitness</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
+        <span class="nav-label">Start</span>
+      </button>
+      <div class="sidebar-section-label">Übungen</div>
+      <button class="nav-item add-exercise-nav-btn" id="addExerciseNavBtn" onclick="openCreateExerciseModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="nav-label">Übung hinzufügen</span>
+      </button>
+      <div class="sidebar-section-label">Übersicht</div>
+      <button class="nav-item" data-page="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
+        <span class="nav-label">Verlauf</span>
+      </button>
+      <button class="nav-item" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="nav-label">Einstellungen</span>
+      </button>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div class="wrap">
+
+      <div class="page active" id="page-home">
+        <div class="quote-block">
+          <p class="quote-text" id="dailyQuote"></p>
+        </div>
+
+        <div class="home-grid" id="homeGrid"></div>
+
+        <div class="empty-app-state" id="homeEmptyState">
+          <p>Noch keine Übung angelegt. Füge deine erste Übung hinzu, um loszulegen.</p>
+          <button class="auth-submit-btn" onclick="openCreateExerciseModal()">Übung hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="page" id="page-history">
+        <h1>Verlauf</h1>
+        <div class="empty-app-state" id="historyEmptyState">
+          <p>Noch keine Übung angelegt. Lege eine Übung an, um hier deinen Verlauf zu sehen.</p>
+          <button class="auth-submit-btn" onclick="openCreateExerciseModal()">Übung hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="page" id="page-settings">
+        <h1>Einstellungen</h1>
+        <div class="empty-app-state" id="settingsEmptyState">
+          <p>Noch keine Übung angelegt. Lege eine Übung an, um Ziele und Verlauf zu verwalten.</p>
+          <button class="auth-submit-btn" onclick="openCreateExerciseModal()">Übung hinzufügen</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="createExOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeCreateExerciseModal()" aria-label="Schließen">✕</button>
+    <p class="modal-title">Neue Übung</p>
+    <div class="modal-body">
+      <div class="field">
+        <label for="createExNameInput">Name der Übung</label>
+        <input type="text" id="createExNameInput" maxlength="30" placeholder="z. B. Kniebeugen">
+      </div>
+      <div class="field">
+        <label>Was möchtest du tracken?</label>
+        <div class="unit-toggle" id="createExUnitToggle">
+          <button type="button" class="unit-toggle-btn active" data-unit="reps" onclick="selectCreateExUnit('reps')">Wiederholungen</button>
+          <button type="button" class="unit-toggle-btn" data-unit="count" onclick="selectCreateExUnit('count')">Schritte</button>
+          <button type="button" class="unit-toggle-btn" data-unit="time" onclick="selectCreateExUnit('time')">Zeit</button>
+        </div>
+      </div>
+      <p class="auth-status" id="createExStatus"></p>
+      <button class="auth-submit-btn" onclick="submitCreateExercise()">Übung erstellen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manageExOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeManageEx()" aria-label="Schließen">✕</button>
+    <p class="modal-title">Übung verwalten</p>
+    <div class="modal-body">
+      <div class="field">
+        <label for="manageExNameInput">Name</label>
+        <input type="text" id="manageExNameInput" maxlength="30">
+      </div>
+      <p class="auth-status" id="manageExStatus"></p>
+      <button class="auth-submit-btn" onclick="saveExRename()">Speichern</button>
+      <button class="danger-btn wide" id="manageExDeleteBtn" onclick="requestDeleteEx()">Übung löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addPastOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAddPast()" aria-label="Schließen">✕</button>
+    <p class="modal-title">Tag nachtragen</p>
+    <div class="modal-body">
+      <div class="field">
+        <label for="addPastDateInput">Datum</label>
+        <input type="date" id="addPastDateInput">
+      </div>
+      <div class="field" id="addPastRepsField">
+        <label for="addPastRepsInput">Anzahl</label>
+        <input type="number" id="addPastRepsInput" min="1" step="1" inputmode="numeric">
+      </div>
+      <div class="field-row" id="addPastTimeField" style="display:none">
+        <div class="field">
+          <label for="addPastMinInput">Minuten</label>
+          <input type="number" id="addPastMinInput" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="addPastSecInput">Sekunden</label>
+          <input type="number" id="addPastSecInput" min="0" max="59" step="1" inputmode="numeric">
+        </div>
+      </div>
+      <p class="field-hint" id="addPastHint">Wird zu einem bereits vorhandenen Eintrag für diesen Tag hinzugezählt.</p>
+      <p class="auth-status" id="addPastStatus"></p>
+      <button class="auth-submit-btn" onclick="submitAddPast()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Speicher-Fallback: Diese App nutzt normalerweise die window.storage-API der
+   Claude-Umgebung. Wird die Seite als normale Datei im Browser geöffnet
+   (z. B. per Doppelklick oder eigenem Hosting), existiert diese API nicht,
+   wodurch bisher alle Daten beim Schließen/Neuladen verloren gingen.
+   Als Ersatz wird in diesem Fall localStorage verwendet, das im Browser
+   dauerhaft (auch nach Schließen/Neuladen) gespeichert bleibt. */
+if(!window.storage){
+  window.storage = {
+    async get(key){
+      const raw = localStorage.getItem('fw__' + key);
+      if(raw === null) return null;
+      return { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      localStorage.setItem('fw__' + key, value);
+      return { key, value, shared: false };
+    },
+    async delete(key){
+      const existed = localStorage.getItem('fw__' + key) !== null;
+      localStorage.removeItem('fw__' + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith('fw__')){
+          const realKey = k.slice(4);
+          if(!prefix || realKey.startsWith(prefix)) keys.push(realKey);
+        }
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
+/* Alle Übungen (egal ob von Anfang an genutzt oder später hinzugefügt) leben
+   gleichberechtigt in diesem Objekt - es gibt keine fest verdrahteten Übungen
+   mehr. Neue Einträge bekommen: baseKey (Basis-Speicherplatz) und suffix
+   (eigene Element-IDs, '_' + key). */
+const EX = {};
+
+/* Trackbare Einheiten für Übungen: Wiederholungen, Schritte (beide reine Zahlen)
+   oder Zeit (intern in Sekunden gespeichert, wie Minuten:Sekunden angezeigt). */
+const UNIT_TYPES = {
+  reps:  { label: 'Wiederholungen', kind: 'number' },
+  count: { label: 'Schritte', kind: 'number' },
+  time:  { label: 'Zeit', kind: 'time' }
+};
+function unitLabel(ex){
+  return (UNIT_TYPES[ex.unit] || UNIT_TYPES.reps).label;
+}
+function isTimeUnit(ex){
+  return ex.unit === 'time';
+}
+function formatDuration(totalSeconds){
+  const s = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${formatNumber(m)}:${String(rem).padStart(2, '0')}`;
+}
+function formatNumber(n){
+  return Number(n).toLocaleString('de-DE');
+}
+function formatValue(ex, val){
+  return isTimeUnit(ex) ? formatDuration(val) : formatNumber(val);
+}
+function goalDisplayValue(ex, seconds){
+  return isTimeUnit(ex) ? Math.round(seconds / 60) : seconds;
+}
+function goalDisplayLabel(ex){
+  return isTimeUnit(ex) ? 'Min' : unitLabel(ex);
+}
+
+function getStorageKey(ex){
+  return ex.baseKey;
+}
+function isShared(){
+  return false;
+}
+
+function elId(ex, base){ return base + ex.suffix; }
+
+function todayKey(d = new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function weekdayShort(d){
+  return d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
+}
+
+function calendarWeekDateKeys(){
+  const now = new Date();
+  const dayOfWeek = (now.getDay() + 6) % 7; // Montag = 0
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek);
+  const keys = [];
+  for(let i = 0; i < 7; i++){
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    keys.push(todayKey(d));
+  }
+  return keys;
+}
+
+async function loadEx(ex){
+  ex.data.goals = { ...ex.defaultGoals };
+  ex.data.days = {};
+  ex.quoteCategory = undefined;
+  try{
+    const key = getStorageKey(ex);
+    const result = await storageWithRetry(() => window.storage.get(key, isShared()), 3);
+    if(result && result.value){
+      const d = JSON.parse(result.value);
+      if(d.goals){
+        ex.data.goals = { ...ex.defaultGoals, ...d.goals };
+      }else if(d.goal){
+        // Migration von der alten Einzelziel-Struktur
+        ex.data.goals = { day: d.goal, week: d.goal*7, month: d.goal*30, year: d.goal*365 };
+      }
+      if(d.days){
+        ex.data.days = d.days;
+      }else if(d.entries){
+        // Migration: alte Einzeleinträge zu Tages-Summen zusammenfassen
+        const days = {};
+        d.entries.forEach(e => { days[e.date] = (days[e.date] || 0) + e.reps; });
+        ex.data.days = days;
+      }
+    }
+  }catch(e){
+    // Kein bisheriger Eintrag vorhanden (oder Speicher dauerhaft nicht erreichbar) -
+    // in beiden Fällen werden vorerst Standardwerte angezeigt.
+    console.error('Laden fehlgeschlagen für', ex.baseKey, e);
+  }
+  ex.ready = true;
+  renderEx(ex);
+}
+
+function wait(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Führt eine window.storage-Operation mit automatischen Wiederholversuchen aus.
+// "Internal server error" ist meist ein kurzzeitiger, vorübergehender Fehler.
+async function storageWithRetry(fn, maxAttempts = 4){
+  let lastError = null;
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    try{
+      return await fn();
+    }catch(e){
+      lastError = e;
+      console.error('Storage-Aktion fehlgeschlagen (Versuch', attempt + 1, ')', e);
+      if(attempt < maxAttempts - 1){
+        await wait(400 * Math.pow(2, attempt)); // 400ms, 800ms, 1.6s
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function persistEx(ex){
+  const key = getStorageKey(ex);
+  const shared = isShared();
+  const maxAttempts = 4;
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    try{
+      await window.storage.set(key, JSON.stringify(ex.data), shared);
+      return;
+    }catch(e){
+      console.error('Speichern fehlgeschlagen für', key, '(Versuch', attempt + 1, ')', e);
+      if(attempt < maxAttempts - 1){
+        await wait(500 * Math.pow(2, attempt)); // 500ms, 1s, 2s
+      }
+    }
+  }
+}
+
+// Stellt sicher, dass pro Übung immer nur EIN Speichervorgang gleichzeitig läuft.
+// Kommt währenddessen eine weitere Änderung rein, wird sie danach nachgeholt
+// statt einen zweiten, parallelen Request auszulösen (das führte zu Fehlern).
+async function runPersist(ex){
+  if(ex._persisting){
+    ex._pendingSave = true;
+    return;
+  }
+  ex._persisting = true;
+  await persistEx(ex);
+  ex._persisting = false;
+  if(ex._pendingSave){
+    ex._pendingSave = false;
+    runPersist(ex);
+  }
+}
+
+function schedulePersist(ex){
+  clearTimeout(ex._saveTimer);
+  ex._saveTimer = setTimeout(() => runPersist(ex), 400);
+}
+
+function addReps(key, n){
+  const ex = EX[key];
+  if(!ex.ready) return;
+  const today = todayKey();
+  const current = ex.data.days[today] || 0;
+  const updated = Math.max(0, current + n);
+  if(updated === 0){
+    delete ex.data.days[today];
+  }else{
+    ex.data.days[today] = updated;
+  }
+  schedulePersist(ex);
+  renderEx(ex);
+}
+
+function addStepsFromInput(key){
+  const ex = EX[key];
+  const input = document.getElementById(elId(ex, 'stepsInput'));
+  if(!input) return;
+  const raw = input.value.trim();
+  if(!/^[0-9]+$/.test(raw) || parseInt(raw, 10) <= 0) return;
+  addReps(key, parseInt(raw, 10));
+  input.value = '';
+  input.focus();
+}
+
+function deleteDay(key, dateStr){
+  const ex = EX[key];
+  delete ex.data.days[dateStr];
+  runPersist(ex);
+  renderEx(ex);
+}
+
+function saveGoals(key){
+  const ex = EX[key];
+  const dayInput = document.getElementById(elId(ex, 'goalDayInput'));
+  const weekInput = document.getElementById(elId(ex, 'goalWeekInput'));
+  const monthInput = document.getElementById(elId(ex, 'goalMonthInput'));
+  const yearInput = document.getElementById(elId(ex, 'goalYearInput'));
+  const statusEl = document.getElementById(elId(ex, 'goalStatus'));
+
+  const raw = {
+    day: dayInput.value.trim(),
+    week: weekInput.value.trim(),
+    month: monthInput.value.trim(),
+    year: yearInput.value.trim()
+  };
+  const isValidNumber = v => /^[0-9]+$/.test(v) && parseInt(v, 10) > 0;
+  const allValid = Object.values(raw).every(isValidNumber);
+
+  if(!allValid){
+    statusEl.textContent = 'Ziele wurden nicht geändert – bitte nur Zahlen eingeben.';
+    statusEl.className = 'goal-status error';
+    return;
+  }
+
+  const multiplier = isTimeUnit(ex) ? 60 : 1;
+  ex.data.goals = {
+    day: parseInt(raw.day, 10) * multiplier,
+    week: parseInt(raw.week, 10) * multiplier,
+    month: parseInt(raw.month, 10) * multiplier,
+    year: parseInt(raw.year, 10) * multiplier
+  };
+  runPersist(ex);
+  renderEx(ex);
+  statusEl.textContent = 'Ziele wurden gespeichert.';
+  statusEl.className = 'goal-status success';
+}
+
+const resetConfirmState = {};
+const RESET_BTN_ID = {};
+
+function requestReset(key){
+  const btn = document.getElementById(RESET_BTN_ID[key]);
+  if(resetConfirmState[key]){
+    clearTimeout(resetConfirmState[key].timeout);
+    delete resetConfirmState[key];
+    performReset(key);
+    return;
+  }
+  const originalText = btn.textContent;
+  btn.textContent = 'Wirklich? Nochmal klicken';
+  resetConfirmState[key] = {
+    timeout: setTimeout(() => {
+      btn.textContent = originalText;
+      delete resetConfirmState[key];
+    }, 4000)
+  };
+}
+
+function performReset(key){
+  const ex = EX[key];
+  ex.data.days = {};
+  runPersist(ex);
+  renderEx(ex);
+  const btn = document.getElementById(RESET_BTN_ID[key]);
+  if(btn) btn.textContent = 'Zurücksetzen';
+}
+
+function totalsByDate(ex){
+  return { ...ex.data.days };
+}
+
+function computeDailyAverage(ex, allTime){
+  const dates = Object.keys(ex.data.days).filter(d => ex.data.days[d] > 0);
+  if(dates.length === 0) return 0;
+  const earliest = dates.reduce((min, d) => (d < min ? d : min), dates[0]);
+  const start = new Date(earliest + 'T00:00:00');
+  const end = new Date(todayKey() + 'T00:00:00');
+  const daysElapsed = Math.round((end - start) / 86400000) + 1;
+  return allTime / Math.max(1, daysElapsed);
+}
+
+function formatAverage(ex, avg){
+  if(isTimeUnit(ex)) return formatDuration(avg);
+  return avg.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function computeStreak(ex, totals){
+  let streak = 0;
+  let cursor = new Date();
+  if(!totals[todayKey(cursor)]){
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  while(totals[todayKey(cursor)] > 0){
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function renderEx(ex){
+  const totals = totalsByDate(ex);
+  const today = todayKey();
+  const todayTotal = totals[today] || 0;
+
+  pickPerformanceQuote(ex);
+
+  document.getElementById(elId(ex,'todayTotal')).textContent = formatValue(ex, todayTotal);
+  document.getElementById(elId(ex,'goalText')).textContent = `Ziel: ${formatNumber(goalDisplayValue(ex, ex.data.goals.day))} ${goalDisplayLabel(ex)}`;
+  document.getElementById(elId(ex,'goalDayInput')).value = goalDisplayValue(ex, ex.data.goals.day);
+  document.getElementById(elId(ex,'goalWeekInput')).value = goalDisplayValue(ex, ex.data.goals.week);
+  document.getElementById(elId(ex,'goalMonthInput')).value = goalDisplayValue(ex, ex.data.goals.month);
+  document.getElementById(elId(ex,'goalYearInput')).value = goalDisplayValue(ex, ex.data.goals.year);
+
+  const pct = Math.min(100, Math.round((todayTotal / ex.data.goals.day) * 100));
+  const fill = document.getElementById(elId(ex,'plateFill'));
+  fill.style.width = pct + '%';
+  document.getElementById(elId(ex,'plateLoader')).classList.toggle('goal-met', todayTotal >= ex.data.goals.day);
+
+  document.getElementById(elId(ex,'streakNumber')).textContent = computeStreak(ex, totals);
+
+  renderChart(ex);
+  const weekSum = calendarWeekDateKeys().reduce((sum, key) => sum + (totals[key] || 0), 0);
+  document.getElementById(elId(ex,'weekTotal')).textContent = formatValue(ex, weekSum);
+
+  const allTime = Object.values(ex.data.days).reduce((sum, v) => sum + v, 0);
+  document.getElementById(elId(ex,'allTimeTotal')).textContent = formatValue(ex, allTime);
+
+  if(Object.values(EX).every(e => e.ready)) renderHome();
+
+  const historyList = document.getElementById(elId(ex,'historyList'));
+  const exKey = Object.keys(EX).find(k => EX[k] === ex);
+  const sortedDates = Object.keys(ex.data.days).filter(d => ex.data.days[d] > 0).sort((a,b) => b.localeCompare(a));
+  if(sortedDates.length === 0){
+    historyList.innerHTML = '<div class="empty-state">Noch keine Einträge. Leg los!</div>';
+  }else{
+    historyList.innerHTML = sortedDates.map(date => `
+      <div class="history-item">
+        <div class="h-info">
+          <span class="h-reps">${formatValue(ex, ex.data.days[date])}</span>
+          <span class="h-date">${formatDate(date)}</span>
+        </div>
+        <button class="h-del" onclick="deleteDay('${exKey}','${date}')" aria-label="Tag löschen">✕</button>
+      </div>
+    `).join('');
+  }
+}
+
+
+function homeTodayElId(key){ return elId(EX[key], 'homeToday'); }
+function homeGoalTextElId(key){ return elId(EX[key], 'homeGoalText'); }
+function homeStreakElId(key){ return elId(EX[key], 'homeStreak'); }
+
+function renderHome(){
+  Object.keys(EX).forEach(key => {
+    const ex = EX[key];
+    if(!ex.ready) return;
+    const totals = totalsByDate(ex);
+    const allTime = Object.values(ex.data.days).reduce((sum, v) => sum + v, 0);
+
+    const todayEl = document.getElementById(homeTodayElId(key));
+    if(todayEl) todayEl.textContent = formatValue(ex, allTime);
+    const goalTextEl = document.getElementById(homeGoalTextElId(key));
+    if(goalTextEl) goalTextEl.textContent = `Ø ${formatAverage(ex, computeDailyAverage(ex, allTime))} pro Tag`;
+
+    const streakEl = document.getElementById(homeStreakElId(key));
+    if(streakEl) streakEl.textContent = `${computeStreak(ex, totals)} Tage Streak`;
+  });
+}
+
+function isoWeekNumber(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function periodTitle(period){
+  const now = new Date();
+  if(period === 'day') return 'Heute';
+  if(period === 'week') return `Kalenderwoche ${isoWeekNumber(now)}`;
+  if(period === 'month') return now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return String(now.getFullYear());
+}
+
+function buildChartData(ex, period){
+  const totals = totalsByDate(ex);
+
+  if(period === 'week'){
+    const now = new Date();
+    const dayOfWeek = (now.getDay() + 6) % 7; // Montag = 0
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOfWeek);
+    const days = [];
+    for(let i = 0; i < 7; i++){
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(d);
+    }
+    const today = todayKey();
+    return {
+      values: days.map(d => totals[todayKey(d)] || 0),
+      labels: days.map(d => weekdayShort(d)),
+      highlightIdx: days.findIndex(d => todayKey(d) === today)
+    };
+  }
+
+  if(period === 'month'){
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const days = [];
+    for(let day = 1; day <= daysInMonth; day++){
+      days.push(new Date(now.getFullYear(), now.getMonth(), day));
+    }
+    const today = todayKey();
+    return {
+      values: days.map(d => totals[todayKey(d)] || 0),
+      labels: days.map(d => String(d.getDate())),
+      highlightIdx: days.findIndex(d => todayKey(d) === today),
+      uniformHeight: true
+    };
+  }
+
+  // year: Januar bis Dezember des aktuellen Jahres
+  const now = new Date();
+  const months = [];
+  for(let m = 0; m <= 11; m++){
+    months.push(new Date(now.getFullYear(), m, 1));
+  }
+  const values = months.map(m => {
+    return Object.keys(totals).reduce((sum, dateStr) => {
+      const ed = new Date(dateStr + 'T00:00:00');
+      return (ed.getFullYear() === m.getFullYear() && ed.getMonth() === m.getMonth()) ? sum + totals[dateStr] : sum;
+    }, 0);
+  });
+  return {
+    values,
+    labels: months.map(m => m.toLocaleDateString('de-DE', { month: 'short' }).replace('.', '')),
+    highlightIdx: now.getMonth()
+  };
+}
+
+function renderChart(ex){
+  const { values, labels, highlightIdx, sparseLabels, uniformHeight } = buildChartData(ex, ex.period);
+  const weekChart = document.getElementById(elId(ex,'weekChart'));
+  weekChart.innerHTML = '';
+  weekChart.classList.toggle('is-dense', values.length > 12);
+  const maxVal = Math.max(1, ...values, ex.data.goals.day * 0.6);
+
+  values.forEach((val, i) => {
+    const isHighlight = i === highlightIdx;
+    const heightPct = uniformHeight
+      ? (val > 0 ? 100 : 4)
+      : Math.max(2, Math.round((val / maxVal) * 100));
+    const barPct = val > 0 ? heightPct : 2;
+    const showLabel = !sparseLabels || i === 0 || i % 5 === 0 || i === values.length - 1;
+    const displayVal = formatValue(ex, val);
+
+    const col = document.createElement('div');
+    col.className = 'day-col' + (isHighlight ? ' is-today' : '');
+    col.title = `${labels[i]}: ${displayVal}`;
+    col.innerHTML = `
+      <div class="day-bar-track">
+        <div class="day-value" style="bottom:${barPct}%">${val > 0 ? displayVal : ''}</div>
+        <div class="day-bar" style="height:${barPct}%"></div>
+      </div>
+      <div class="day-name">${showLabel ? labels[i] : ''}</div>
+    `;
+    weekChart.appendChild(col);
+  });
+
+  document.getElementById(elId(ex,'chartTitle')).textContent = periodTitle(ex.period);
+}
+
+
+function formatDate(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = todayKey();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if(dateStr === today) return 'Heute';
+  if(dateStr === todayKey(yesterday)) return 'Gestern';
+  return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function wireGoalEnterKey(key, ids){
+  ids.forEach(id => {
+    document.getElementById(id).addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') saveGoals(key);
+    });
+  });
+}
+/* Zeitraum-Auswahl (Tag/Woche/Monat/Jahr) je Übung */
+function wirePeriodTabs(key, containerId){
+  const ex = EX[key];
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      ex.period = btn.dataset.period;
+      renderChart(ex);
+    });
+  });
+}
+/* Sidebar: Ein-/Ausklappen */
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const isMobile = () => window.innerWidth <= 640;
+
+sidebarToggle.addEventListener('click', (e) => {
+  if(isMobile()){
+    sidebar.classList.toggle('expanded-mobile');
+    e.stopPropagation();
+  }else{
+    sidebar.classList.toggle('collapsed');
+  }
+});
+
+/* Ausgeklappte mobile Leiste schließen, wenn daneben getippt wird */
+document.addEventListener('click', (e) => {
+  if(isMobile() && sidebar.classList.contains('expanded-mobile') && !sidebar.contains(e.target)){
+    sidebar.classList.remove('expanded-mobile');
+  }
+});
+
+/* Navigation zwischen Seiten */
+let currentPage = 'home';
+function switchToPage(pageKey){
+  if(currentPage === 'settings' && pageKey !== 'settings'){
+    document.querySelectorAll('#page-settings .goal-status').forEach(el => {
+      el.textContent = '';
+      el.className = 'goal-status';
+    });
+  }
+  currentPage = pageKey;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === pageKey));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + pageKey));
+  if(isMobile()) sidebar.classList.remove('expanded-mobile');
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+  if(btn.dataset.page) btn.addEventListener('click', () => switchToPage(btn.dataset.page));
+});
+document.querySelectorAll('.home-card-link').forEach(btn => {
+  btn.addEventListener('click', () => switchToPage(btn.dataset.page));
+});
+
+/* Zitate für die Startseite: zufällige Auswahl bei jedem Laden */
+/* Leistungs-Zitate für Liegestütze/Pull-Ups: abhängig vom Tagesziel-Status */
+const QUOTES_BELOW_GOAL = [
+  "Every great achievement begins with the courage to take the first step.",
+  "Your goal isn't far away—every day brings you one step closer.",
+  "Success belongs to those who keep going when others give up.",
+  "It's not perfection that gets you to your goal—it's consistency.",
+  "Invest today. Benefit tomorrow.",
+  "Your dreams won't work for you—you have to work for your dreams.",
+  "Every small step forward is a victory over standing still.",
+  "Give your goal more attention than your excuses.",
+  "The greatest distance between you and your goal is hesitation.",
+  "Keep going. What feels difficult today will become your strength tomorrow."
+];
+
+const QUOTES_AT_GOAL = [
+  "You've proven that persistence is stronger than doubt.",
+  "Success tastes best when you've earned it.",
+  "Today you celebrate the result of your daily decisions.",
+  "Every achieved goal was once just a dream.",
+  "You didn't get here by luck—you got here through consistency.",
+  "Your success is proof that perseverance pays off.",
+  "Take a moment to enjoy it. You've earned every bit of it.",
+  "One goal achieved. Countless new opportunities unlocked.",
+  "Success isn't an accident—it's the sum of your efforts.",
+  "What seemed impossible yesterday is your reality today."
+];
+
+const QUOTES_ABOVE_GOAL = [
+  "You didn't just reach your goal—you pushed beyond your own limits.",
+  "Don't aim to outperform others. Aim to outperform the person you were yesterday.",
+  "When you surpass your goal, a new chapter begins.",
+  "Extraordinary results come from extraordinary determination.",
+  "Your greatest achievement is believing you're capable of more.",
+  "Limits often exist only until you choose to cross them.",
+  "Those who achieve more than they planned think bigger than their doubts.",
+  "You didn't just win—you set a new standard.",
+  "A surpassed goal is the starting point for your next vision.",
+  "When you exceed your goal, you prove that the best often lies beyond your expectations."
+];
+
+function pickPerformanceQuote(ex){
+  const totals = totalsByDate(ex);
+  const todayTotal = totals[todayKey()] || 0;
+  const goal = ex.data.goals.day;
+
+  let category, pool;
+  if(todayTotal > goal){ category = 'above'; pool = QUOTES_ABOVE_GOAL; }
+  else if(todayTotal === goal && goal > 0){ category = 'at'; pool = QUOTES_AT_GOAL; }
+  else { category = 'below'; pool = QUOTES_BELOW_GOAL; }
+
+  const el = document.getElementById(elId(ex, 'perfQuote'));
+  if(!el) return;
+
+  // Nur neu auswählen, wenn sich der Zielstatus tatsächlich geändert hat
+  if(ex.quoteCategory === category) return;
+  ex.quoteCategory = category;
+
+  const quote = pool[Math.floor(Math.random() * pool.length)];
+  el.textContent = quote;
+}
+
+const QUOTES = [
+  "When you know your ‘why,’ then your ‘what’ has more impact because you’re working toward your purpose.",
+  "Never give up on something that you can’t go a day without thinking about.",
+  "When everything seems to be going against you, remember that the airplane takes off against the wind, not with it.",
+  "You do what you can for as long as you can, and when you finally can’t, you do the next best thing. You back up, but you don’t give up.",
+  "Our greatest weakness lies in giving up. The most certain way to succeed is always to try just one more time.",
+  "Strength does not come from physical capacity. It comes from an indomitable will.",
+  "The difference between a successful person and others is not a lack of strength, not a lack of knowledge, but rather a lack in will.",
+  "It always seems impossible until it’s done.",
+  "The journey of a thousand miles begins with one step.",
+  "The secret of getting ahead is getting started.",
+  "How long should you try? Until.",
+  "Winners never quit, and quitters never win.",
+  "Believe you can, and you’re halfway there.",
+  "The greater the obstacle, the more glory in overcoming it.",
+  "It does not matter how slowly you go as long as you do not stop.",
+  "Successful men keep moving. They make mistakes, but they don’t quit.",
+  "Fall seven times; stand up eight.",
+  "Keep your face always toward the sunshine—and shadows will fall behind you.",
+  "Believe in yourself and all that you are. Know that there is something inside you that is greater than any obstacle.",
+  "Most of the important things in the world have been accomplished by people who have kept on trying when there seemed to be no hope at all.",
+  "The only time you fail is when you fall down and stay down.",
+  "If you fall behind, run faster. Never give up, never surrender and rise up against the odds.",
+  "It’s not whether you get knocked down, it’s whether you get up.",
+  "The human spirit is stronger than anything that can happen to it.",
+  "The only thing that stands between you and your dream is the will to try and the belief that it is actually possible.",
+  "A phone can still Charge when the Screen is Turnt off - Just Because No one Can see Your progression Doesn´t mean you ain´t Powering Up.",
+  "“You can´t make it”, “You´re crazy”, “You´re too young”, “What if you fail” - What if i don´t?",
+  "It´s not about Intensity, it´s about Consistency",
+  "You can be a masterpiece and a work in progress at the same time.",
+  "Keep going, even when no one is applauding. Discipline is built without an audience.",
+  "One day at the gym won't make you stronger. But if you stop training, you'll gradually become weaker. Success works the same way.",
+  "If no one is clapping for you, clap for yourself, If no one believes in you, believe in yourself, If no one writes your story, write it yourself, If no one motivates you, motivate yourself. - At the end of the day, you are the only person who matters."
+];
+
+function showRandomQuote(){
+  const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  document.getElementById('dailyQuote').textContent = quote;
+}
+
+/* ===== Übung umbenennen / löschen (Zahnrad-Menü) ===== */
+
+let manageExKey = null;
+let addPastKey = null;
+
+// Alle Element-IDs einer Übung folgen demselben Schema (Basisname + '_' + key),
+// egal ob die Übung schon beim Start existierte oder später hinzugefügt wurde.
+function navLabelElId(key){ return elId(EX[key], 'navLabel'); }
+function pageTitleElId(key){ return elId(EX[key], 'pageTitle'); }
+function homeLabelElId(key){ return elId(EX[key], 'homeCardLabel'); }
+function historyTitleElId(key){ return elId(EX[key], 'historyTitle'); }
+function settingsTitleElId(key){ return elId(EX[key], 'settingsTitle'); }
+function homeCardElId(key){ return elId(EX[key], 'homeCard'); }
+function historySectionElId(key){ return elId(EX[key], 'historySection'); }
+function settingsSectionElId(key){ return elId(EX[key], 'settingsSection'); }
+
+function applyExerciseLabel(key, label){
+  const navLabel = document.getElementById(navLabelElId(key));
+  if(navLabel) navLabel.textContent = label;
+  const pageTitle = document.getElementById(pageTitleElId(key));
+  if(pageTitle) pageTitle.textContent = label;
+  const homeLabel = document.getElementById(homeLabelElId(key));
+  if(homeLabel) homeLabel.textContent = label;
+  const historyTitle = document.getElementById(historyTitleElId(key));
+  if(historyTitle) historyTitle.textContent = label;
+  const settingsTitle = document.getElementById(settingsTitleElId(key));
+  if(settingsTitle) settingsTitle.textContent = label;
+}
+
+// Zeigt/versteckt die "Noch keine Übung angelegt"-Hinweise auf Start-, Verlaufs-
+// und Einstellungsseite, je nachdem ob überhaupt Übungen existieren.
+function updateEmptyStates(){
+  const hasExercises = Object.keys(EX).length > 0;
+  ['homeEmptyState','historyEmptyState','settingsEmptyState'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = hasExercises ? 'none' : '';
+  });
+  const homeGrid = document.getElementById('homeGrid');
+  if(homeGrid) homeGrid.style.display = hasExercises ? '' : 'none';
+}
+
+function openManageEx(key){
+  manageExKey = key;
+  document.getElementById('manageExNameInput').value = EX[key].label;
+  const statusEl = document.getElementById('manageExStatus');
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+  const delBtn = document.getElementById('manageExDeleteBtn');
+  delBtn.textContent = 'Übung löschen';
+  document.getElementById('manageExOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('manageExNameInput').focus(), 50);
+}
+
+function closeManageEx(){
+  document.getElementById('manageExOverlay').classList.remove('open');
+  manageExKey = null;
+  deleteExConfirmActive = false;
+}
+
+async function saveExRename(){
+  if(!manageExKey) return;
+  const input = document.getElementById('manageExNameInput');
+  const statusEl = document.getElementById('manageExStatus');
+  const name = input.value.trim();
+  if(name.length < 2 || name.length > 30){
+    statusEl.textContent = 'Bitte einen Namen zwischen 2 und 30 Zeichen eingeben.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+  EX[manageExKey].label = name;
+  applyExerciseLabel(manageExKey, name);
+  await persistCustomExercises();
+  statusEl.textContent = 'Gespeichert.';
+  statusEl.className = 'auth-status success';
+  setTimeout(closeManageEx, 700);
+}
+
+let deleteExConfirmActive = false;
+function requestDeleteEx(){
+  if(!manageExKey) return;
+  const btn = document.getElementById('manageExDeleteBtn');
+  if(deleteExConfirmActive){
+    deleteExConfirmActive = false;
+    performDeleteEx(manageExKey);
+    return;
+  }
+  deleteExConfirmActive = true;
+  btn.textContent = 'Wirklich? Nochmal klicken';
+  setTimeout(() => {
+    if(deleteExConfirmActive){
+      deleteExConfirmActive = false;
+      btn.textContent = 'Übung löschen';
+    }
+  }, 4000);
+}
+
+// Entfernt eine Übung komplett: DOM-Elemente, Zustand im Speicher und die
+// gespeicherten Trainingsdaten. Es gibt keinen "nur ausblenden"-Modus mehr,
+// da keine Übung mehr fest verdrahtet ist, die man nicht löschen könnte.
+async function performDeleteEx(key){
+  const ex = EX[key];
+  if(!ex) return;
+
+  const wasCurrentPage = currentPage === key;
+
+  document.querySelector(`.nav-item-wrapper[data-ex-key="${key}"]`)?.remove();
+  document.getElementById('page-' + key)?.remove();
+  document.getElementById(homeCardElId(key))?.remove();
+  document.getElementById(historySectionElId(key))?.remove();
+  document.getElementById(settingsSectionElId(key))?.remove();
+
+  delete EX[key];
+  delete RESET_BTN_ID[key];
+  exerciseOrder = exerciseOrder.filter(k => k !== key);
+
+  try{
+    await storageWithRetry(() => window.storage.delete(getStorageKey(ex), isShared()));
+  }catch(e){
+    console.error('Konnte gespeicherte Daten der Übung nicht löschen', e);
+  }
+  await persistCustomExercises();
+
+  updateEmptyStates();
+  closeManageEx();
+  if(wasCurrentPage) switchToPage('home');
+}
+
+/* ===== Vergangenen Tag nachtragen (Kalender-Button im Verlauf) ===== */
+
+function openAddPast(key){
+  addPastKey = key;
+  const ex = EX[key];
+  const dateInput = document.getElementById('addPastDateInput');
+  const repsField = document.getElementById('addPastRepsField');
+  const timeField = document.getElementById('addPastTimeField');
+  const repsInput = document.getElementById('addPastRepsInput');
+  const minInput = document.getElementById('addPastMinInput');
+  const secInput = document.getElementById('addPastSecInput');
+  const statusEl = document.getElementById('addPastStatus');
+  dateInput.value = todayKey();
+  dateInput.max = todayKey();
+  repsInput.value = '';
+  minInput.value = '';
+  secInput.value = '';
+  if(isTimeUnit(ex)){
+    repsField.style.display = 'none';
+    timeField.style.display = 'flex';
+  }else{
+    repsField.style.display = 'block';
+    timeField.style.display = 'none';
+  }
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+  document.getElementById('addPastOverlay').classList.add('open');
+  setTimeout(() => dateInput.focus(), 50);
+}
+
+function closeAddPast(){
+  document.getElementById('addPastOverlay').classList.remove('open');
+  addPastKey = null;
+}
+
+async function submitAddPast(){
+  if(!addPastKey) return;
+  const ex = EX[addPastKey];
+  const dateInput = document.getElementById('addPastDateInput');
+  const repsInput = document.getElementById('addPastRepsInput');
+  const minInput = document.getElementById('addPastMinInput');
+  const secInput = document.getElementById('addPastSecInput');
+  const statusEl = document.getElementById('addPastStatus');
+  const dateStr = dateInput.value;
+
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+
+  if(!dateStr){
+    statusEl.textContent = 'Bitte ein Datum wählen.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+  if(dateStr > todayKey()){
+    statusEl.textContent = 'Das Datum darf nicht in der Zukunft liegen.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+
+  let amount;
+  if(isTimeUnit(ex)){
+    const minRaw = minInput.value.trim();
+    const secRaw = secInput.value.trim();
+    const isValidPart = v => v === '' || /^[0-9]+$/.test(v);
+    if(!isValidPart(minRaw) || !isValidPart(secRaw)){
+      statusEl.textContent = 'Bitte nur Zahlen für Minuten/Sekunden eingeben.';
+      statusEl.className = 'auth-status error';
+      return;
+    }
+    const min = minRaw === '' ? 0 : parseInt(minRaw, 10);
+    const sec = secRaw === '' ? 0 : parseInt(secRaw, 10);
+    if(min <= 0 && sec <= 0){
+      statusEl.textContent = 'Bitte eine Zeit größer als 0 eingeben.';
+      statusEl.className = 'auth-status error';
+      return;
+    }
+    amount = min * 60 + sec;
+  }else{
+    const repsRaw = repsInput.value.trim();
+    if(!/^[0-9]+$/.test(repsRaw) || parseInt(repsRaw, 10) <= 0){
+      statusEl.textContent = 'Bitte eine Anzahl größer als 0 eingeben.';
+      statusEl.className = 'auth-status error';
+      return;
+    }
+    amount = parseInt(repsRaw, 10);
+  }
+
+  const current = ex.data.days[dateStr] || 0;
+  ex.data.days[dateStr] = current + amount;
+
+  await runPersist(ex);
+  renderEx(ex);
+
+  statusEl.textContent = 'Eintrag hinzugefügt.';
+  statusEl.className = 'auth-status success';
+  setTimeout(closeAddPast, 700);
+}
+
+/* ===== Neue Übung erstellen ===== */
+
+const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+const GENERIC_EX_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 17.5 17.5"/><rect x="2.5" y="2.5" width="6" height="6" rx="1.5"/><rect x="15.5" y="15.5" width="6" height="6" rx="1.5"/></svg>';
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function slugify(name){
+  const base = name.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 20);
+  return base || 'uebung';
+}
+
+function generateExerciseKey(name){
+  const base = slugify(name);
+  let key = base;
+  let n = 2;
+  while(EX[key]){
+    key = `${base}_${n}`;
+    n++;
+  }
+  return key;
+}
+
+const DRAG_HANDLE_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+
+function navItemHTML(ex){
+  return `
+      <div class="nav-item-wrapper" data-ex-key="${ex.key}">
+        <button type="button" class="nav-drag-handle" aria-label="Reihenfolge ändern (ziehen)">
+          ${DRAG_HANDLE_SVG}
+        </button>
+        <button class="nav-item" data-page="${ex.key}" onclick="switchToPage('${ex.key}')">
+          ${GENERIC_EX_ICON}
+          <span class="nav-label" id="${elId(ex,'navLabel')}">${escapeHtml(ex.label)}</span>
+        </button>
+        <button class="nav-gear" onclick="event.stopPropagation(); openManageEx('${ex.key}')" aria-label="Übung verwalten">
+          ${GEAR_SVG}
+        </button>
+      </div>`;
+}
+
+function exercisePageHTML(ex){
+  const timeBased = isTimeUnit(ex);
+  const countBased = ex.unit === 'count';
+  const goalText = timeBased
+    ? `Ziel: ${formatNumber(Math.round(ex.defaultGoals.day / 60))} Min`
+    : `Ziel: ${formatNumber(ex.defaultGoals.day)} ${unitLabel(ex)}`;
+
+  let quickAddsBlock;
+  if(timeBased){
+    quickAddsBlock = `
+          <div class="quick-adds">
+            <button class="btn-minus" onclick="addReps('${ex.key}',-10)">-10s</button>
+            <button class="btn-minus" onclick="addReps('${ex.key}',-1)">-1s</button>
+            <button onclick="addReps('${ex.key}',1)">+1s</button>
+            <button onclick="addReps('${ex.key}',10)">+10s</button>
+            <button onclick="addReps('${ex.key}',30)">+30s</button>
+            <button onclick="addReps('${ex.key}',60)">+1min</button>
+          </div>`;
+  }else if(countBased){
+    quickAddsBlock = `
+          <div class="step-input-row">
+            <input type="number" id="${elId(ex,'stepsInput')}" inputmode="numeric" min="1" step="1" placeholder="Schritte eingeben">
+            <button onclick="addStepsFromInput('${ex.key}')">Hinzufügen</button>
+          </div>`;
+  }else{
+    quickAddsBlock = `
+          <div class="quick-adds">
+            <button class="btn-minus" onclick="addReps('${ex.key}',-1)">-1</button>
+            <button class="btn-minus" onclick="addReps('${ex.key}',-5)">-5</button>
+            <button onclick="addReps('${ex.key}',1)">+1</button>
+            <button onclick="addReps('${ex.key}',5)">+5</button>
+            <button onclick="addReps('${ex.key}',10)">+10</button>
+            <button onclick="addReps('${ex.key}',20)">+20</button>
+          </div>`;
+  }
+
+  return `
+      <div class="page" id="page-${ex.key}">
+        <h1 id="${elId(ex,'pageTitle')}">${escapeHtml(ex.label)}</h1>
+
+        <div class="quote-block compact">
+          <p class="quote-text" id="${elId(ex,'perfQuote')}"></p>
+        </div>
+
+        <div class="card counter-card">
+          <div class="counter-label">Heute</div>
+          <div class="counter-number" id="${elId(ex,'todayTotal')}">${timeBased ? '0:00' : '0'}</div>
+          <div class="counter-goal" id="${elId(ex,'goalText')}">${goalText}</div>
+
+          <div class="plate-loader" id="${elId(ex,'plateLoader')}">
+            <div class="fill" id="${elId(ex,'plateFill')}" style="width:0%"></div>
+          </div>
+${quickAddsBlock}
+        </div>
+
+        <div class="card">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-number streak" id="${elId(ex,'streakNumber')}">0</div>
+              <div class="stat-label">Tage Streak</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="${elId(ex,'weekTotal')}">0</div>
+              <div class="stat-label">Diese Woche</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="${elId(ex,'allTimeTotal')}">0</div>
+              <div class="stat-label">Insgesamt</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card-title" id="${elId(ex,'chartTitle')}">Kalenderwoche</p>
+          <div class="period-tabs" id="${elId(ex,'periodTabs')}">
+            <button data-period="week" class="active">Woche</button>
+            <button data-period="month">Monat</button>
+            <button data-period="year">Jahr</button>
+          </div>
+          <div class="week-chart" id="${elId(ex,'weekChart')}"></div>
+        </div>
+      </div>`;
+}
+
+function homeCardHTML(ex){
+  return `
+          <div class="home-card" id="${homeCardElId(ex.key)}">
+            <div class="home-card-label" id="${homeLabelElId(ex.key)}">${escapeHtml(ex.label)}</div>
+            <div class="home-card-number" id="${elId(ex,'homeToday')}">0</div>
+            <div class="home-card-sub" id="${elId(ex,'homeGoalText')}">Ø 0 pro Tag</div>
+            <div class="home-card-footer">
+              <span class="home-card-streak" id="${elId(ex,'homeStreak')}">0 Tage Streak</span>
+              <button class="home-card-link" data-page="${ex.key}" onclick="switchToPage('${ex.key}')">Öffnen →</button>
+            </div>
+          </div>`;
+}
+
+function historySectionHTML(ex){
+  return `
+        <div id="${historySectionElId(ex.key)}">
+          <div class="history-section-head">
+            <h2 class="section-title" id="${historyTitleElId(ex.key)}">${escapeHtml(ex.label)}</h2>
+            <button class="add-past-btn" onclick="openAddPast('${ex.key}')" aria-label="Vergangenen Tag nachtragen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            </button>
+          </div>
+          <div class="card">
+            <div class="history-list" id="${elId(ex,'historyList')}">
+              <div class="empty-state">Noch keine Einträge. Leg los!</div>
+            </div>
+          </div>
+        </div>`;
+}
+
+function settingsSectionHTML(ex){
+  const g = ex.defaultGoals;
+  const timeBased = isTimeUnit(ex);
+  const divisor = timeBased ? 60 : 1;
+  const suffix = timeBased ? ' (Minuten)' : '';
+  return `
+        <div id="${settingsSectionElId(ex.key)}">
+          <h2 class="section-title" id="${settingsTitleElId(ex.key)}">${escapeHtml(ex.label)}</h2>
+          <div class="card">
+            <p class="card-title">Ziele</p>
+            <div class="goal-grid">
+              <div class="goal-field">
+                <label for="${elId(ex,'goalDayInput')}">Tagesziel${suffix}</label>
+                <input type="text" inputmode="numeric" id="${elId(ex,'goalDayInput')}" placeholder="${Math.round(g.day / divisor)}">
+              </div>
+              <div class="goal-field">
+                <label for="${elId(ex,'goalWeekInput')}">Wochenziel${suffix}</label>
+                <input type="text" inputmode="numeric" id="${elId(ex,'goalWeekInput')}" placeholder="${Math.round(g.week / divisor)}">
+              </div>
+              <div class="goal-field">
+                <label for="${elId(ex,'goalMonthInput')}">Monatsziel${suffix}</label>
+                <input type="text" inputmode="numeric" id="${elId(ex,'goalMonthInput')}" placeholder="${Math.round(g.month / divisor)}">
+              </div>
+              <div class="goal-field">
+                <label for="${elId(ex,'goalYearInput')}">Jahresziel${suffix}</label>
+                <input type="text" inputmode="numeric" id="${elId(ex,'goalYearInput')}" placeholder="${Math.round(g.year / divisor)}">
+              </div>
+            </div>
+            <button class="goal-save-btn" onclick="saveGoals('${ex.key}')">Ziele speichern</button>
+            <p class="goal-status" id="${elId(ex,'goalStatus')}"></p>
+          </div>
+          <div class="card">
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Alle Einträge löschen</div>
+                <div class="settings-row-desc">Entfernt den kompletten Verlauf unwiderruflich.</div>
+              </div>
+              <button class="danger-btn" id="${elId(ex,'resetBtn')}" onclick="requestReset('${ex.key}')">Zurücksetzen</button>
+            </div>
+          </div>
+        </div>`;
+}
+
+function buildExerciseDOM(ex){
+  document.getElementById('addExerciseNavBtn').insertAdjacentHTML('beforebegin', navItemHTML(ex));
+  document.getElementById('page-history').insertAdjacentHTML('beforebegin', exercisePageHTML(ex));
+  const homeGridEl = document.querySelector('.home-grid');
+  if(homeGridEl) homeGridEl.insertAdjacentHTML('beforeend', homeCardHTML(ex));
+  document.getElementById('page-history').insertAdjacentHTML('beforeend', historySectionHTML(ex));
+  document.getElementById('page-settings').insertAdjacentHTML('beforeend', settingsSectionHTML(ex));
+
+  RESET_BTN_ID[ex.key] = elId(ex, 'resetBtn');
+
+  wirePeriodTabs(ex.key, elId(ex, 'periodTabs'));
+  wireGoalEnterKey(ex.key, [
+    elId(ex,'goalDayInput'), elId(ex,'goalWeekInput'), elId(ex,'goalMonthInput'), elId(ex,'goalYearInput')
+  ]);
+  wireDragHandle(ex.key);
+
+  if(ex.unit === 'count'){
+    const stepsInput = document.getElementById(elId(ex, 'stepsInput'));
+    if(stepsInput){
+      stepsInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') addStepsFromInput(ex.key);
+      });
+    }
+  }
+}
+
+// Speicherschlüssel für die Liste aller Übungen (Reihenfolge = Anzeigereihenfolge
+// in der Sidebar). Der Name ist historisch gewachsen, umfasst inzwischen aber
+// jede Übung - es gibt keine separat "eingebauten" Übungen mehr.
+function customExercisesKey(){
+  return 'customExercises';
+}
+
+// Merkt sich die aktuelle Anzeigereihenfolge der Übungen (Quelle: Sidebar-DOM).
+let exerciseOrder = [];
+
+async function persistCustomExercises(){
+  const list = exerciseOrder
+    .filter(k => EX[k])
+    .map(k => ({ key: k, label: EX[k].label, unit: EX[k].unit, defaultGoals: EX[k].defaultGoals }));
+  try{
+    await storageWithRetry(() => window.storage.set(customExercisesKey(), JSON.stringify(list), isShared()));
+  }catch(e){
+    console.error('Konnte Übungen nicht speichern', e);
+  }
+}
+
+async function loadCustomExercises(){
+  try{
+    const r = await storageWithRetry(() => window.storage.get(customExercisesKey(), isShared()), 3);
+    if(r && r.value){
+      const list = JSON.parse(r.value);
+      for(const entry of list){
+        if(EX[entry.key]) continue;
+        const ex = {
+          key: entry.key, baseKey: entry.key, suffix: '_' + entry.key,
+          label: entry.label, unit: entry.unit || 'reps',
+          defaultGoals: entry.defaultGoals,
+          data: { goals: { ...entry.defaultGoals }, days: {} },
+          ready: false, period: 'week'
+        };
+        EX[entry.key] = ex;
+        buildExerciseDOM(ex);
+        exerciseOrder.push(entry.key);
+      }
+    }
+  }catch(e){
+    // keine gespeicherten Übungen vorhanden (oder dauerhaft nicht erreichbar)
+    console.error('Laden der Übungen fehlgeschlagen', e);
+  }
+  updateEmptyStates();
+}
+
+/* ===== Reihenfolge der Übungen per Drag & Drop ändern (Sidebar) ===== */
+
+function getExerciseWrappers(){
+  return Array.from(document.querySelectorAll('.sidebar-nav > .nav-item-wrapper'));
+}
+
+let dragCtx = null;
+
+function wireDragHandle(key){
+  const wrapper = document.querySelector(`.nav-item-wrapper[data-ex-key="${key}"]`);
+  if(!wrapper) return;
+  const handle = wrapper.querySelector('.nav-drag-handle');
+  handle.addEventListener('pointerdown', (e) => startDrag(e, wrapper));
+}
+
+function startDrag(e, wrapper){
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+
+  const rect = wrapper.getBoundingClientRect();
+  const placeholder = document.createElement('div');
+  placeholder.className = 'nav-drag-placeholder';
+  placeholder.style.height = rect.height + 'px';
+  wrapper.parentNode.insertBefore(placeholder, wrapper.nextSibling);
+
+  wrapper.classList.add('dragging');
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = rect.top + 'px';
+  wrapper.style.left = rect.left + 'px';
+  wrapper.style.width = rect.width + 'px';
+  wrapper.style.zIndex = '200';
+
+  dragCtx = { wrapper, placeholder, pointerId: e.pointerId, startClientY: e.clientY, startTop: rect.top };
+
+  try{ wrapper.setPointerCapture(e.pointerId); }catch(err){}
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup', onDragEnd);
+  document.addEventListener('pointercancel', onDragEnd);
+}
+
+function onDragMove(e){
+  if(!dragCtx) return;
+  const dy = e.clientY - dragCtx.startClientY;
+  dragCtx.wrapper.style.top = (dragCtx.startTop + dy) + 'px';
+
+  const draggedRect = dragCtx.wrapper.getBoundingClientRect();
+  const draggedMid = draggedRect.top + draggedRect.height / 2;
+  const siblings = getExerciseWrappers().filter(w => w !== dragCtx.wrapper);
+
+  let placed = false;
+  for(const sib of siblings){
+    const r = sib.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    if(draggedMid < mid){
+      sib.parentNode.insertBefore(dragCtx.placeholder, sib);
+      placed = true;
+      break;
+    }
+  }
+  if(!placed){
+    const addBtn = document.getElementById('addExerciseNavBtn');
+    addBtn.parentNode.insertBefore(dragCtx.placeholder, addBtn);
+  }
+}
+
+async function onDragEnd(){
+  if(!dragCtx) return;
+  const { wrapper, placeholder, pointerId } = dragCtx;
+  try{ wrapper.releasePointerCapture(pointerId); }catch(err){}
+
+  placeholder.parentNode.insertBefore(wrapper, placeholder);
+  placeholder.remove();
+  wrapper.classList.remove('dragging');
+  wrapper.style.position = '';
+  wrapper.style.top = '';
+  wrapper.style.left = '';
+  wrapper.style.width = '';
+  wrapper.style.zIndex = '';
+
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onDragEnd);
+  document.removeEventListener('pointercancel', onDragEnd);
+  dragCtx = null;
+
+  exerciseOrder = getExerciseWrappers().map(w => w.dataset.exKey);
+  reorderExerciseSections(exerciseOrder);
+  await persistCustomExercises();
+}
+
+// Bringt Home-Karten, Verlauf und Einstellungen in dieselbe Reihenfolge wie
+// die Sidebar, nachdem dort per Drag & Drop umsortiert wurde.
+function reorderExerciseSections(order){
+  const homeGrid = document.querySelector('.home-grid');
+  const historyPage = document.getElementById('page-history');
+  const settingsPage = document.getElementById('page-settings');
+  order.forEach(key => {
+    if(!EX[key]) return;
+    const homeCard = document.getElementById(homeCardElId(key));
+    if(homeCard && homeGrid) homeGrid.appendChild(homeCard);
+    const historySection = document.getElementById(historySectionElId(key));
+    if(historySection && historyPage) historyPage.appendChild(historySection);
+    const settingsSection = document.getElementById(settingsSectionElId(key));
+    if(settingsSection && settingsPage) settingsPage.appendChild(settingsSection);
+  });
+}
+
+let createExUnit = 'reps';
+
+function selectCreateExUnit(unit){
+  createExUnit = unit;
+  document.querySelectorAll('#createExUnitToggle .unit-toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.unit === unit);
+  });
+}
+
+function openCreateExerciseModal(){
+  document.getElementById('createExNameInput').value = '';
+  const statusEl = document.getElementById('createExStatus');
+  statusEl.textContent = '';
+  statusEl.className = 'auth-status';
+  selectCreateExUnit('reps');
+  document.getElementById('createExOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('createExNameInput').focus(), 50);
+}
+function closeCreateExerciseModal(){
+  document.getElementById('createExOverlay').classList.remove('open');
+}
+
+async function submitCreateExercise(){
+  const input = document.getElementById('createExNameInput');
+  const statusEl = document.getElementById('createExStatus');
+  const name = input.value.trim();
+
+  if(name.length < 2 || name.length > 30){
+    statusEl.textContent = 'Bitte einen Namen zwischen 2 und 30 Zeichen eingeben.';
+    statusEl.className = 'auth-status error';
+    return;
+  }
+
+  const key = generateExerciseKey(name);
+  const unit = createExUnit;
+  const defaultGoals = unit === 'time'
+    ? { day: 1200, week: 8400, month: 36000, year: 438000 }
+    : { day: 20, week: 140, month: 600, year: 7300 };
+  const ex = {
+    key, baseKey: key, suffix: '_' + key,
+    label: name, unit,
+    defaultGoals,
+    data: { goals: { ...defaultGoals }, days: {} },
+    ready: false, period: 'week'
+  };
+  EX[key] = ex;
+  exerciseOrder.push(key);
+
+  buildExerciseDOM(ex);
+  ex.ready = true;
+  renderEx(ex);
+  updateEmptyStates();
+
+  await persistCustomExercises();
+  closeCreateExerciseModal();
+  switchToPage(key);
+}
+
+document.getElementById('createExOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'createExOverlay') closeCreateExerciseModal();
+});
+document.getElementById('createExNameInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') submitCreateExercise();
+});
+
+document.getElementById('manageExOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'manageExOverlay') closeManageEx();
+});
+document.getElementById('manageExNameInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') saveExRename();
+});
+
+document.getElementById('addPastOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'addPastOverlay') closeAddPast();
+});
+document.getElementById('addPastRepsInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') submitAddPast();
+});
+document.getElementById('addPastMinInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') submitAddPast();
+});
+document.getElementById('addPastSecInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') submitAddPast();
+});
+
+
+async function init(){
+  showRandomQuote();
+  await loadCustomExercises();
+  await Promise.all(Object.values(EX).map(loadEx));
+  updateEmptyStates();
+}
+init();
+</script>
+</body>
+</html>
